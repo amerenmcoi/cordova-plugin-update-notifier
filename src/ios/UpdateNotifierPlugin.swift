@@ -22,7 +22,7 @@ class UpdateNotifierPlugin : CDVPlugin {
     override func pluginInitialize() {
         NotificationCenter.default.addObserver(self,
                 selector: #selector(UpdateNotifierPlugin._didFinishLaunchingWithOptions(_:)),
-                name: UIApplication.didFinishLaunchingNotification,
+                name: UIApplication.didBecomeActiveNotification,
                 object: nil);
     }
 
@@ -35,6 +35,8 @@ class UpdateNotifierPlugin : CDVPlugin {
         }
 
         let siren = Siren.shared
+
+        siren.rulesManager = RulesManager(globalRules: .critical, showAlertAfterCurrentVersionHasBeenReleasedForDays: 0)
 
         if let alertType = self.commandDelegate.settings["sirenalerttype"] as? String {
             switch alertType {
@@ -62,6 +64,6 @@ class UpdateNotifierPlugin : CDVPlugin {
             siren.apiManager = APIManager(countryCode: countryCode)
         }
 
-        siren.wail()
+        DispatchQueue.main.async { siren.wail() }
     }
 }
