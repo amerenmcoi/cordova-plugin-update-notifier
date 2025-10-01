@@ -93,12 +93,14 @@ public class UpdateNotifierPlugin extends CordovaPlugin {
             public void onSuccess(AppUpdateInfo appUpdateInfo) {
                 if (!forceImmediate && appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
                     try {
+                        cordova.setActivityResultCallback(UpdateNotifierPlugin.this);
                         mAppUpdateManager.startUpdateFlowForResult(appUpdateInfo, AppUpdateType.FLEXIBLE, cordova.getActivity(), RC_APP_UPDATE);
                     } catch (IntentSender.SendIntentException e) {
                         e.printStackTrace();
                     }
                 } else if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
                     try {
+                        cordova.setActivityResultCallback(UpdateNotifierPlugin.this);
                         mAppUpdateManager.startUpdateFlowForResult(appUpdateInfo, AppUpdateType.IMMEDIATE, cordova.getActivity(), RC_APP_UPDATE);
                     } catch (IntentSender.SendIntentException e) {
                         e.printStackTrace();
@@ -111,6 +113,32 @@ public class UpdateNotifierPlugin extends CordovaPlugin {
             }
         });
         mHasPrompted = true;
+    }
+
+    /**
+     * Called when the activity becomes visible again.
+     */
+    @Override
+    public void onResume(boolean multitasking) {
+        super.onResume(multitasking);
+    
+        if (mAppUpdateManager != null) {
+            mAppUpdateManager.getAppUpdateInfo().addOnSuccessListener(info -> {
+                if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                    try {
+                        cordova.setActivityResultCallback(UpdateNotifierPlugin.this);
+    
+                        mAppUpdateManager.startUpdateFlowForResult(
+                                info,
+                                AppUpdateType.IMMEDIATE,
+                                cordova.getActivity(),
+                                RC_APP_UPDATE);
+                    } catch (IntentSender.SendIntentException e) {
+                        LOG.e(TAG, "Resume update failed");
+                    }
+                }
+            });
+        }
     }
 
     /**
@@ -136,8 +164,11 @@ public class UpdateNotifierPlugin extends CordovaPlugin {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
         if (requestCode == RC_APP_UPDATE && resultCode != RESULT_OK) {
-            LOG.e(TAG, "App Update failed! Result code: " + resultCode);
+            LOG.e(TAG, "App Update cancelled/failed! Result code: " + resultCode);
+            cordova.getActivity().finish();
         }
+
+        super.onActivityResult(requestCode, resultCode, intent);
     }
 
     private void popupSnackbarForCompleteUpdate() {
