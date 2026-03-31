@@ -20,50 +20,54 @@ import Siren
 class UpdateNotifierPlugin : CDVPlugin {
 
     override func pluginInitialize() {
-        NotificationCenter.default.addObserver(self,
-                selector: #selector(UpdateNotifierPlugin._didFinishLaunchingWithOptions(_:)),
-                name: UIApplication.didBecomeActiveNotification,
-                object: nil);
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(UpdateNotifierPlugin._didFinishLaunchingWithOptions(_:)),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
     }
-
 
     @objc internal func _didFinishLaunchingWithOptions(_ notification : NSNotification) {
         // Check if there's an MDM setting to disable update checking
         let disableUpdateCheck = UserDefaults.standard.dictionary(forKey: "com.apple.configuration.managed")?["DisableUpdateCheck"] as? String
-        if (disableUpdateCheck == "true") {
-            return;
+        if disableUpdateCheck == "true" {
+            return
         }
 
         let siren = Siren.shared
 
-        siren.rulesManager = RulesManager(globalRules: .critical, showAlertAfterCurrentVersionHasBeenReleasedForDays: 0)
-
+        let globalRules: Rules
         if let alertType = self.commandDelegate.settings["sirenalerttype"] as? String {
             switch alertType {
             case "critical":
-                siren.rulesManager = RulesManager(globalRules: .critical)
-                break;
+                globalRules = .critical
             case "annoying":
-                siren.rulesManager = RulesManager(globalRules: .annoying)
-                break;
+                globalRules = .annoying
             case "persistent":
-                siren.rulesManager = RulesManager(globalRules: .persistent)
-                break;
+                globalRules = .persistent
             case "hinting":
-                siren.rulesManager = RulesManager(globalRules: .hinting)
-                break;
+                globalRules = .hinting
             case "relaxed":
-                siren.rulesManager = RulesManager(globalRules: .relaxed)
-                break;
+                globalRules = .relaxed
             default:
-                siren.rulesManager = RulesManager(globalRules: .default)
+                globalRules = .default
             }
+        } else {
+            globalRules = .critical
         }
+
+        siren.rulesManager = RulesManager(
+            globalRules: globalRules,
+            showAlertAfterCurrentVersionHasBeenReleasedForDays: 0
+        )
 
         if let countryCode = self.commandDelegate.settings["sirencountrycode"] as? String {
             siren.apiManager = APIManager(countryCode: countryCode)
         }
 
-        DispatchQueue.main.async { siren.wail() }
+        DispatchQueue.main.async {
+            siren.wail(performCheck: .onDemand)
+        }
     }
 }
