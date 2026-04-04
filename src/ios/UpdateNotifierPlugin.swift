@@ -19,19 +19,21 @@ import Siren
 @objc(CDVUpdateNotifierPlugin)
 class UpdateNotifierPlugin : CDVPlugin {
 
-    override func pluginInitialize() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(UpdateNotifierPlugin._didFinishLaunchingWithOptions(_:)),
-            name: UIApplication.didBecomeActiveNotification,
-            object: nil
-        )
+    @objc(checkForUpdate:)
+    func checkForUpdate(command: CDVInvokedUrlCommand) {
+        runUpdateCheck(callbackId: command.callbackId)
     }
 
-    @objc internal func _didFinishLaunchingWithOptions(_ notification : NSNotification) {
-        // Check if there's an MDM setting to disable update checking
+    private func runUpdateCheck(callbackId: String) {
         let disableUpdateCheck = UserDefaults.standard.dictionary(forKey: "com.apple.configuration.managed")?["DisableUpdateCheck"] as? String
         if disableUpdateCheck == "true" {
+            let result = CDVPluginResult(
+                status: CDVCommandStatus_OK,
+                messageAs: [
+                    "status": "continue"
+                ]
+            )
+            self.commandDelegate.send(result, callbackId: callbackId)
             return
         }
 
@@ -67,7 +69,27 @@ class UpdateNotifierPlugin : CDVPlugin {
         }
 
         DispatchQueue.main.async {
-            siren.wail(performCheck: .onDemand)
+            siren.wail(performCheck: .onDemand) { results in
+                switch results {
+                case .success(_):
+                    let result = CDVPluginResult(
+                        status: CDVCommandStatus_OK,
+                        messageAs: [
+                            "status": "updateAvailable"
+                        ]
+                    )
+                    self.commandDelegate.send(result, callbackId: callbackId)
+
+                case .failure(_):
+                    let result = CDVPluginResult(
+                        status: CDVCommandStatus_OK,
+                        messageAs: [
+                            "status": "continue"
+                        ]
+                    )
+                    self.commandDelegate.send(result, callbackId: callbackId)
+                }
+            }
         }
     }
 }
